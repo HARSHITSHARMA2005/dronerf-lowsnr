@@ -63,9 +63,6 @@ Each baseline saves: test_logits.npy (or test_scores.npy for SVM), test_labels.n
 - Do NOT run scripts without activating the venv first
 
 ## Current State (update this section as we progress)
-- Day 4: Baselines
-  - SVM done — 93.89% test accuracy
-  - CNN done — 91.22% test accuracy, macro F1 0.9271 (best epoch 50)
-  - MLP — script ready (train/train_mlp.py), pending manual execution
-- Next: run MLP manually, then calibration analysis (ECE, reliability diagrams, temperature scaling)
-- After that: calibration under noise, then paper writing
+- All three baselines complete: SVM 93.89%, CNN 91.22%, MLP 90.28%
+- Bebop-AR confusion consistent across all three model families (data-inherent)
+- Next: calibration analysis (ECE, reliability diagrams, temperature scaling)
