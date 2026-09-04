@@ -1,9 +1,15 @@
-"""Calibration analysis for the three DroneRF baselines (SVM, CNN, MLP).
+"""Calibration analysis for the five DroneRF baselines: SVM, CNN (GroupNorm),
+CNN-BN (BatchNorm ablation), MLP (LayerNorm-free), MLP-BN (BatchNorm
+ablation).
 
 Core paper contribution: measures whether softmax/decision-function confidence
 scores on the clean test set are trustworthy (ECE, MCE, Brier, NLL), draws
 reliability diagrams, and applies temperature scaling (Guo et al. 2017) to fix
 miscalibration without changing predictions (argmax is temperature-invariant).
+The cnn_bn/mlp_bn variants exist to test the ablation hypothesis that
+BatchNorm-based classifiers (as used in prior DroneRF work, e.g. Al-Sa'd 2019,
+Al-Emadi 2020) are more severely miscalibrated than our GroupNorm/LayerNorm-
+free main baselines.
 
 SVM handling note: train/train_svm.py trains a plain SVC/LinearSVC WITHOUT
 probability=True (see model.decision_function usage there), so there is no
@@ -37,6 +43,8 @@ sys.path.insert(0, str(REPO_ROOT / "train"))
 from utils import load_splits, RESULTS_DIR  # noqa: E402
 from train_mlp import MLP  # noqa: E402
 from train_cnn import CNN1D  # noqa: E402
+from train_mlp_bn import MLPBN  # noqa: E402
+from train_cnn_bn import CNN1DBN  # noqa: E402
 
 OUT_DIR = RESULTS_DIR / "calibration"
 N_BINS_ECE = 15
@@ -173,25 +181,42 @@ def plot_reliability(probs, labels, ece, model_name, tag, out_dir, n_bins=N_BINS
 def fit_temperature(val_logits, val_labels):
     """Optimize scalar T minimizing NLL on validation logits via LBFGS.
 
-    T is reparameterized as softplus(raw) to keep it strictly positive without
-    a hard clamp (avoids zero-gradient regions from clamping/abs at 0).
+    Follows the reference temperature-scaling implementation (Guo et al. 2017):
+    T is optimized directly (no softplus reparameterization — that dampens the
+    gradient via the chain rule and was verified to leave LBFGS unconverged,
+    e.g. true val-NLL-minimizing T~1.2 for MLP but the softplus version
+    returned T~1.45 after 50 iterations, making calibration *worse*).
+    `line_search_fn="strong_wolfe"` and 3 repeated .step(closure) calls make
+    convergence reliable; T is only clamped (min=0.05) inside the loss to
+    guard against numerical issues, never reparameterized.
     """
     val_logits_t = torch.from_numpy(val_logits).float()
     val_labels_t = torch.from_numpy(val_labels).long()
 
-    raw_T = torch.nn.Parameter(torch.tensor([1.5]))
-    optimizer = torch.optim.LBFGS([raw_T], lr=0.01, max_iter=50)
+    T = torch.nn.Parameter(torch.ones(1) * 1.0)
+    optimizer = torch.optim.LBFGS([T], lr=0.01, max_iter=100, line_search_fn="strong_wolfe")
     criterion = nn.CrossEntropyLoss()
 
     def closure():
         optimizer.zero_grad()
-        T = torch.nn.functional.softplus(raw_T) + 1e-3  # T > 0
-        loss = criterion(val_logits_t / T, val_labels_t)
+        loss = criterion(val_logits_t / T.clamp(min=0.05), val_labels_t)
         loss.backward()
         return loss
 
-    optimizer.step(closure)
-    T_final = (torch.nn.functional.softplus(raw_T) + 1e-3).item()
+    with torch.no_grad():
+        nll_before = criterion(val_logits_t / T.clamp(min=0.05), val_labels_t).item()
+
+    for _ in range(3):
+        optimizer.step(closure)
+
+    with torch.no_grad():
+        T_final = float(T.clamp(min=0.05).item())
+        nll_after = criterion(val_logits_t / T.clamp(min=0.05), val_labels_t).item()
+
+    if nll_after > nll_before + 1e-6:
+        print(f"  WARNING: temperature fit did not improve val NLL "
+              f"({nll_before:.4f} -> {nll_after:.4f}); check convergence.")
+
     return T_final
 
 
@@ -199,30 +224,40 @@ def fit_temperature(val_logits, val_labels):
 # Per-model pipelines
 # ---------------------------------------------------------------------------
 
-def get_val_logits_mlp(X_val):
-    device = torch.device("cpu")
-    model = MLP().to(device)
-    model.load_state_dict(torch.load(RESULTS_DIR / "baseline_mlp" / "model.pt", map_location=device))
-    model.eval()
-    with torch.no_grad():
-        logits = model(torch.from_numpy(X_val).float()).numpy()
-    return logits
-
-
-def get_val_logits_cnn(X_val):
-    device = torch.device("cpu")
-    model = CNN1D().to(device)
-    model.load_state_dict(torch.load(RESULTS_DIR / "baseline_cnn" / "model.pt", map_location=device))
-    model.eval()
-    X_val_r = X_val.reshape(X_val.shape[0], 1, -1)
-    with torch.no_grad():
-        logits = model(torch.from_numpy(X_val_r).float()).numpy()
-    return logits
+def make_val_logits_fn(model_class, result_dir_name, reshape_conv):
+    """Build a get_val_logits(X_val) closure for a torch model checkpoint."""
+    def fn(X_val):
+        device = torch.device("cpu")
+        model = model_class().to(device)
+        model.load_state_dict(torch.load(RESULTS_DIR / result_dir_name / "model.pt", map_location=device))
+        model.eval()
+        X_in = X_val.reshape(X_val.shape[0], 1, -1) if reshape_conv else X_val
+        with torch.no_grad():
+            logits = model(torch.from_numpy(X_in).float()).numpy()
+        return logits
+    return fn
 
 
 def get_val_scores_svm(X_val):
     model = joblib.load(RESULTS_DIR / "baseline_svm" / "model.joblib")
     return model.decision_function(X_val)
+
+
+# Each entry: (display_name, results_subdir, reshape_for_conv, val_fn_builder)
+# val_fn_builder is called with no args to get the get_val_scores(X_val) fn,
+# except for svm which uses the dedicated get_val_scores_svm directly.
+MODEL_SPECS = [
+    {"name": "svm", "dir": "baseline_svm", "scores_file": "test_scores.npy",
+     "val_fn": get_val_scores_svm},
+    {"name": "cnn", "dir": "baseline_cnn", "scores_file": "test_logits.npy",
+     "val_fn": make_val_logits_fn(CNN1D, "baseline_cnn", reshape_conv=True)},
+    {"name": "cnn_bn", "dir": "baseline_cnn_bn", "scores_file": "test_logits.npy",
+     "val_fn": make_val_logits_fn(CNN1DBN, "baseline_cnn_bn", reshape_conv=True)},
+    {"name": "mlp", "dir": "baseline_mlp", "scores_file": "test_logits.npy",
+     "val_fn": make_val_logits_fn(MLP, "baseline_mlp", reshape_conv=False)},
+    {"name": "mlp_bn", "dir": "baseline_mlp_bn", "scores_file": "test_logits.npy",
+     "val_fn": make_val_logits_fn(MLPBN, "baseline_mlp_bn", reshape_conv=False)},
+]
 
 
 def run_model(name, test_scores, test_labels, val_scores_fn, X_val, y_val, out_dir):
@@ -264,37 +299,28 @@ def main():
     _, X_val, _, _, y_val, _ = load_splits()
 
     results = {}
-
-    # SVM
-    svm_scores = np.load(RESULTS_DIR / "baseline_svm" / "test_scores.npy")
-    svm_labels = np.load(RESULTS_DIR / "baseline_svm" / "test_labels.npy")
-    print(f"SVM test_scores shape={svm_scores.shape} dtype={svm_scores.dtype}")
-    results["svm"] = run_model("svm", svm_scores, svm_labels, get_val_scores_svm, X_val, y_val, OUT_DIR)
-
-    # CNN
-    cnn_logits = np.load(RESULTS_DIR / "baseline_cnn" / "test_logits.npy")
-    cnn_labels = np.load(RESULTS_DIR / "baseline_cnn" / "test_labels.npy")
-    results["cnn"] = run_model("cnn", cnn_logits, cnn_labels, get_val_logits_cnn, X_val, y_val, OUT_DIR)
-
-    # MLP
-    mlp_logits = np.load(RESULTS_DIR / "baseline_mlp" / "test_logits.npy")
-    mlp_labels = np.load(RESULTS_DIR / "baseline_mlp" / "test_labels.npy")
-    results["mlp"] = run_model("mlp", mlp_logits, mlp_labels, get_val_logits_mlp, X_val, y_val, OUT_DIR)
+    for spec in MODEL_SPECS:
+        name, subdir, scores_file, val_fn = spec["name"], spec["dir"], spec["scores_file"], spec["val_fn"]
+        scores = np.load(RESULTS_DIR / subdir / scores_file)
+        labels = np.load(RESULTS_DIR / subdir / "test_labels.npy")
+        print(f"{name.upper()} {scores_file} shape={scores.shape} dtype={scores.dtype}")
+        results[name] = run_model(name, scores, labels, val_fn, X_val, y_val, OUT_DIR)
 
     with open(OUT_DIR / "calibration_metrics.json", "w") as f:
         json.dump(results, f, indent=2)
 
     # --- Part G: summary table -----------------------------------------------
     print(f"\n{'=' * 100}")
-    header = f"{'MODEL':<6} | {'Uncal ECE':>10} | {'Cal ECE':>8} | {'ECE reduction':>13} | " \
+    header = f"{'MODEL':<8} | {'Uncal ECE':>10} | {'Cal ECE':>8} | {'ECE reduction':>13} | " \
              f"{'Uncal Brier':>11} | {'Cal Brier':>9} | {'Accuracy':>8} | {'T*':>6}"
     print(header)
     print("-" * len(header))
-    for name in ["svm", "cnn", "mlp"]:
+    for spec in MODEL_SPECS:
+        name = spec["name"]
         u = results[name]["uncalibrated"]
         c = results[name]["calibrated"]
         reduction = u["ECE"] / c["ECE"] if c["ECE"] > 0 else float("inf")
-        print(f"{name.upper():<6} | {u['ECE']:>10.4f} | {c['ECE']:>8.4f} | {reduction:>11.2f}x | "
+        print(f"{name.upper():<8} | {u['ECE']:>10.4f} | {c['ECE']:>8.4f} | {reduction:>11.2f}x | "
               f"{u['Brier']:>11.4f} | {c['Brier']:>9.4f} | {c['accuracy'] * 100:>7.2f}% | {c['temperature']:>6.3f}")
     print("=" * 100)
     print(f"\nSaved: {OUT_DIR / 'calibration_metrics.json'}")
