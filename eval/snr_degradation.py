@@ -123,9 +123,16 @@ def add_awgn(x_raw, snr_db, rng):
     return x_raw + noise
 
 
-def preprocess_raw(x_raw, scaler):
-    x_log = np.log10(x_raw + LOG_EPSILON)
-    return scaler.transform(x_log).astype(np.float32)
+def preprocess_raw(x_raw, scaler, snr_db="clean"):
+    # Power spectrum values are physically non-negative, but AWGN injection can produce
+    # negative values when signal magnitude is small relative to noise. Clip to LOG_EPSILON
+    # before log to preserve physical validity and prevent NaN. This matches standard
+    # practice in RF signal processing under low-SNR simulation.
+    x_noisy_clipped = np.maximum(x_raw, LOG_EPSILON)
+    x_log = np.log10(x_noisy_clipped)
+    x_standardized = scaler.transform(x_log).astype(np.float32)
+    assert not np.any(np.isnan(x_standardized)), f"NaN detected after standardization at SNR={snr_db}"
+    return x_standardized
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +234,7 @@ def main():
         for seed in NOISE_SEEDS:
             rng = np.random.default_rng(seed)
             X_noisy_raw = add_awgn(X_test_raw, snr_db, rng)
-            X_noisy = preprocess_raw(X_noisy_raw, scaler)
+            X_noisy = preprocess_raw(X_noisy_raw, scaler, snr_db=snr_db)
 
             for spec in model_specs:
                 name = spec["name"]
