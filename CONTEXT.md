@@ -44,6 +44,27 @@ comparison.
 - BatchNorm unstable on sparse log-spectrum → use LayerNorm for deep models
 - Bebop↔AR is the main confusion pair (both Parrot drones with similar RF signatures)
 
+## SNR Degradation Study (secondary contribution, in progress)
+Tests whether calibration degrades faster than accuracy under realistic RF
+signal degradation, using the clean-data temperature T* (no per-SNR
+re-fitting — that would leak test-time noise info into the calibrator).
+
+- Script: eval/snr_degradation.py
+- Noise model: AWGN injected into the pre-log-transform raw power spectrum
+  (X_test_raw.npy), at per-sample SNR = P_signal / (10^(SNR_dB/10)), then
+  log10 + the training StandardScaler are re-applied — mirrors the real
+  preprocessing pipeline instead of adding noise to already-transformed
+  features.
+- SNR levels tested: clean (reference) + [20, 15, 10, 5, 0, -5, -10, -15] dB
+- 5 independent noise seeds per SNR level; metrics reported as mean ± std
+- Per model, per level: accuracy, ECE (uncalibrated), ECE (calibrated with
+  clean-data T*), Brier, NLL
+- Requires data/processed/X_test_raw.npy (added by preprocess/load_and_split.py)
+  and results/calibration/calibration_metrics.json (for T* values)
+- Outputs: results/snr_degradation/degradation_metrics.json + 4 plots
+  (accuracy_vs_snr, ece_uncalibrated_vs_snr, ece_calibrated_vs_snr,
+  degradation_comparison), each as 300dpi PNG + PDF
+
 ## Environment
 - Windows, PowerShell, VS Code
 - Python venv at venv/ — activate with venv\Scripts\Activate.ps1
@@ -56,7 +77,8 @@ comparison.
 - preprocess/            (load_and_split.py — log+standardize pipeline)
 - models/                (empty, model classes inline in train scripts)
 - train/                 (train_svm.py, train_cnn.py, train_mlp.py, train_cnn_bn.py, train_mlp_bn.py, utils.py)
-- eval/                  (calibration.py — ECE/MCE/Brier/NLL + temperature scaling for all 5 models)
+- eval/                  (calibration.py — ECE/MCE/Brier/NLL + temperature scaling for all 5 models;
+                          snr_degradation.py — AWGN robustness study)
 - diagnose/              (diagnostic scripts — reference only)
 - results/               (gitignored, all outputs)
 - paper/references/REFERENCES.md   (13 key citations)
@@ -78,17 +100,23 @@ comparison.
 - Do NOT run scripts without activating the venv first
 
 ## Current State (update this section as we progress)
-- Day 5: Fixing calibration bug, adding BatchNorm ablation baselines
-- Original 3 baselines complete: SVM 93.89%, CNN 91.22%, MLP 90.28%
-- Bebop-AR confusion consistent across all three model families (data-inherent)
+- Day 5-6: 5 baselines + calibration analysis done; SNR degradation study in progress
+- All 5 baselines complete: SVM 93.89%, CNN 91.22%, CNN-BN 89.60%, MLP 90.28%,
+  MLP-BN 92.78%
+- Bebop-AR confusion consistent across all model families (data-inherent)
 - Found and fixed a real bug in eval/calibration.py's fit_temperature(): the
   softplus reparameterization dampened LBFGS's gradient and left it
   unconverged at max_iter=50, so temperature scaling was making ECE/NLL/Brier
-  *worse* for all 3 models instead of better. Fixed by optimizing T directly
+  *worse* for all models instead of better. Fixed by optimizing T directly
   (no reparameterization) with line_search_fn="strong_wolfe", max_iter=100,
   and 3 repeated .step(closure) calls, matching the reference Guo et al. 2017
   implementation. Verified against manual grid search (MLP: true optimal
   T~1.2, now returns T~1.18; ECE now drops 0.0177→0.0119 instead of rising).
-- Next: run train_cnn_bn.py and train_mlp_bn.py manually, then re-run
-  eval/calibration.py across all 5 models, then calibration-under-noise
-  experiments, then paper writing
+- Key finding: on clean data, all 4 DL models (CNN, CNN-BN, MLP, MLP-BN) are
+  naturally well-calibrated (uncalibrated ECE ~1.5-2%), while SVM is severely
+  miscalibrated (uncalibrated ECE 23.1%). Temperature scaling fixes SVM to
+  ECE 3.5% without changing accuracy. This undercuts the ablation hypothesis
+  that BatchNorm alone drives miscalibration — normalization choice matters
+  less than model family (margin-based SVM vs. softmax-trained DL) here.
+- Next: eval/snr_degradation.py (AWGN robustness of accuracy + calibration
+  under the clean-data T*, not re-fit per noise level), then paper writing
