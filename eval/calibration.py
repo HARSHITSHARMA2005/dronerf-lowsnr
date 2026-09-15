@@ -63,6 +63,16 @@ N_BINS_PLOT = 10
 CLASS_NAMES = ["background", "Bebop", "AR", "Phantom"]
 NUM_CLASSES = 4
 
+MODEL_DISPLAY_NAMES = {
+    "svm": "SVM (decision softmax)",
+    "svm_platt": "SVM (Platt)",
+    "svm_platt_temp": "SVM (Platt + T*)",
+    "cnn": "CNN-GN",
+    "cnn_bn": "CNN-BN",
+    "mlp": "MLP",
+    "mlp_bn": "MLP-BN",
+}
+
 
 # ---------------------------------------------------------------------------
 # Core calibration metrics
@@ -163,7 +173,8 @@ def plot_reliability(probs, labels, ece, model_name, tag, out_dir, n_bins=N_BINS
     ax1.set_xlim(0, 1)
     ax1.set_ylim(0, 1)
     ax1.set_ylabel("Accuracy")
-    ax1.set_title(f"Reliability Diagram — {model_name.upper()} ({tag})")
+    display_name = MODEL_DISPLAY_NAMES.get(model_name, model_name.upper())
+    ax1.set_title(f"Reliability Diagram — {display_name} ({tag})", fontsize=11)
     ax1.text(0.03, 0.92, f"ECE = {ece:.4f}", transform=ax1.transAxes,
               fontsize=11, verticalalignment="top",
               bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
@@ -359,7 +370,62 @@ def run_svm_proba_variants(test_proba, test_labels, val_proba, y_val, out_dir):
     return uncal_metrics, cal_metrics
 
 
+def plot_only():
+    """Redraw reliability diagrams from already-saved scores + calibration_metrics.json
+    T* values, without refitting temperatures or re-running inference."""
+    metrics_path = OUT_DIR / "calibration_metrics.json"
+    with open(metrics_path) as f:
+        results = json.load(f)
+
+    titles = []
+    for spec in MODEL_SPECS:
+        name, subdir, scores_file = spec["name"], spec["dir"], spec["scores_file"]
+        scores = np.load(RESULTS_DIR / subdir / scores_file)
+        labels = np.load(RESULTS_DIR / subdir / "test_labels.npy")
+        T_star = results[name]["calibrated"]["temperature"]
+
+        probs_uncal = softmax(scores, axis=1)
+        _, pdf1 = plot_reliability(probs_uncal, labels, results[name]["uncalibrated"]["ECE"],
+                                    name, "uncalibrated", OUT_DIR)
+        probs_cal = softmax(scores / T_star, axis=1)
+        _, pdf2 = plot_reliability(probs_cal, labels, results[name]["calibrated"]["ECE"],
+                                    name, "calibrated", OUT_DIR)
+        display_name = MODEL_DISPLAY_NAMES.get(name, name.upper())
+        titles.append(f"Reliability Diagram — {display_name} (uncalibrated)")
+        titles.append(f"Reliability Diagram — {display_name} (calibrated)")
+
+    svm_prob_dir = RESULTS_DIR / "baseline_svm_prob"
+    test_proba_path = svm_prob_dir / "test_proba.npy"
+    if test_proba_path.exists() and "svm_platt" in results:
+        test_proba = np.load(test_proba_path)
+        test_labels_svm_prob_path = svm_prob_dir / "test_labels.npy"
+        test_labels_svm_prob = (np.load(test_labels_svm_prob_path)
+                                 if test_labels_svm_prob_path.exists()
+                                 else np.load(RESULTS_DIR / "baseline_svm" / "test_labels.npy"))
+        plot_reliability(test_proba, test_labels_svm_prob, results["svm_platt"]["ECE"],
+                          "svm_platt", "uncalibrated", OUT_DIR)
+        titles.append(f"Reliability Diagram — {MODEL_DISPLAY_NAMES['svm_platt']} (uncalibrated)")
+
+        T_star = results["svm_platt_temp"]["temperature"]
+        eps = 1e-12
+        pseudo_logits = np.log(np.clip(test_proba, eps, 1.0))
+        probs_cal = softmax(pseudo_logits / T_star, axis=1)
+        plot_reliability(probs_cal, test_labels_svm_prob, results["svm_platt_temp"]["ECE"],
+                          "svm_platt_temp", "calibrated", OUT_DIR)
+        titles.append(f"Reliability Diagram — {MODEL_DISPLAY_NAMES['svm_platt_temp']} (calibrated)")
+
+    print(f"Regenerated reliability diagrams from {metrics_path} (--plot-only, "
+          f"no refit/inference).")
+    print("\nFinal reliability-diagram titles:")
+    for t in titles:
+        print(f"  {t!r}")
+
+
 def main():
+    if "--plot-only" in sys.argv:
+        plot_only()
+        return
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     _, X_val, _, _, y_val, _ = load_splits()
 

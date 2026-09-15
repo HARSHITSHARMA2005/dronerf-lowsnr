@@ -70,9 +70,9 @@ MODEL_COLORS = {
 }
 MODEL_DISPLAY_NAMES = {
     "svm": "SVM",
-    "cnn": "CNN (GroupNorm)",
+    "cnn": "CNN-GN",
     "cnn_bn": "CNN-BN",
-    "mlp": "MLP (LayerNorm-free)",
+    "mlp": "MLP",
     "mlp_bn": "MLP-BN",
 }
 
@@ -371,6 +371,14 @@ def print_comparison_table(old_results, new_results, model_names):
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if "--plot-only" in sys.argv:
+        metrics_path = OUT_DIR / "degradation_metrics.json"
+        with open(metrics_path) as f:
+            results = json.load(f)
+        make_plots(results)
+        print(f"Regenerated plots from {metrics_path} (--plot-only, no sweep re-run).")
+        return
 
     X_test_raw = np.load(PROCESSED_DIR / "X_test_raw.npy")
     y_test = np.load(PROCESSED_DIR / "y_test.npy")
