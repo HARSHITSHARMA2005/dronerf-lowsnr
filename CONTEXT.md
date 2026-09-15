@@ -100,8 +100,8 @@ re-fitting — that would leak test-time noise info into the calibrator).
 - Do NOT run scripts without activating the venv first
 
 ## Current State (update this section as we progress)
-- Day 5-6: 5 baselines + calibration analysis done; SNR degradation study in progress
-- All 5 baselines complete: SVM 93.89%, CNN 91.22%, CNN-BN 89.60%, MLP 90.28%,
+- All experiments complete; paper drafted.
+- All 5 baselines complete: SVM 93.89%, CNN-GN 91.22%, CNN-BN 89.60%, MLP 90.28%,
   MLP-BN 92.78%
 - Bebop-AR confusion consistent across all model families (data-inherent)
 - Found and fixed a real bug in eval/calibration.py's fit_temperature(): the
@@ -112,11 +112,24 @@ re-fitting — that would leak test-time noise info into the calibrator).
   and 3 repeated .step(closure) calls, matching the reference Guo et al. 2017
   implementation. Verified against manual grid search (MLP: true optimal
   T~1.2, now returns T~1.18; ECE now drops 0.0177→0.0119 instead of rising).
-- Key finding: on clean data, all 4 DL models (CNN, CNN-BN, MLP, MLP-BN) are
+- Key finding: on clean data, all 4 DL models (CNN-GN, CNN-BN, MLP, MLP-BN) are
   naturally well-calibrated (uncalibrated ECE ~1.5-2%), while SVM is severely
   miscalibrated (uncalibrated ECE 23.1%). Temperature scaling fixes SVM to
-  ECE 3.5% without changing accuracy. This undercuts the ablation hypothesis
-  that BatchNorm alone drives miscalibration — normalization choice matters
-  less than model family (margin-based SVM vs. softmax-trained DL) here.
-- Next: eval/snr_degradation.py (AWGN robustness of accuracy + calibration
-  under the clean-data T*, not re-fit per noise level), then paper writing
+  ECE 3.5% without changing accuracy.
+- SNR degradation study complete (physically valid additive noise-floor model,
+  replacing an earlier invalid Gaussian power-domain noise model). Under
+  noise, CNN-BN collapses far more severely than CNN-GN despite similar
+  clean-data accuracy and calibration — this became the paper's key
+  secondary result.
+- Root-caused the CNN-BN collapse: multi-seed evaluation (3 seeds) confirmed
+  it's not a training-seed artifact, and an InstanceNorm control (CNN-IN,
+  same architecture as CNN-BN but per-sample normalization) does NOT collapse
+  — isolating BatchNorm's dependence on *stored* (train-set) normalization
+  statistics, not the pooling axis, as the mechanism. Directly verified by
+  swapping in test-time batch statistics at inference, which recovers most of
+  CNN-BN's lost accuracy under noise (bn_stored_stats_mechanism.json).
+- Key results for the paper: (1) multi-seed CNN-BN vs. CNN-IN comparison
+  under SNR degradation, (2) the stored-statistics mechanism diagnostic
+  explaining *why* CNN-BN collapses (train-time BatchNorm statistics become
+  stale/mismatched under distribution shift from noise, unlike per-sample
+  InstanceNorm).
