@@ -1,0 +1,82 @@
+{
+  "mode1_stored_stats": {
+    "clean": {
+      "accuracy": 0.8854625550660793,
+      "ece_uncalibrated": 0.01701683327665065
+    },
+    "10": {
+      "accuracy_mean": 0.7223494860499265,
+      "accuracy_std": 0.0017285097174228855,
+      "ece_uncalibrated_mean": 0.06455798127577693,
+      "ece_uncalibrated_std": 0.004360268412930794
+    },
+    "5": {
+      "accuracy_mean": 0.14167400881057268,
+      "accuracy_std": 0.0014578177557698507,
+      "ece_uncalibrated_mean": 0.6451256035182971,
+      "ece_uncalibrated_std": 0.002222208056259133
+    },
+    "0": {
+      "accuracy_mean": 0.11694566813509544,
+      "accuracy_std": 0.0010071323465187794,
+      "ece_uncalibrated_mean": 0.7470257163467912,
+      "ece_uncalibrated_std": 0.0009056370110555224
+    }
+  },
+  "mode2_batch_stats": {
+    "clean": {
+      "accuracy": 0.8916299559471366,
+      "ece_uncalibrated": 0.028240817242606957
+    },
+    "10": {
+      "accuracy_mean": 0.8130983847283406,
+      "accuracy_std": 0.0007567752556079386,
+      "ece_uncalibrated_mean": 0.07336919771942273,
+      "ece_uncalibrated_std": 0.0005307699263111675
+    },
+    "5": {
+      "accuracy_mean": 0.7906020558002937,
+      "accuracy_std": 0.0010507221039646386,
+      "ece_uncalibrated_mean": 0.10321311545091927,
+      "ece_uncalibrated_std": 0.0010324119807704284
+    },
+    "0": {
+      "accuracy_mean": 0.7751541850220264,
+      "accuracy_std": 0.0005447059321876788,
+      "ece_uncalibrated_mean": 0.12181038721367479,
+      "ece_uncalibrated_std": 0.0005141601268487735
+    }
+  },
+  "predicted_class_distribution_5db": {
+    "mode1_stored_stats": {
+      "n_samples": 3405,
+      "predicted_class_counts": [
+        70,
+        848,
+        251,
+        2236
+      ],
+      "predicted_class_frac": [
+        0.020558002936857563,
+        0.24904552129221733,
+        0.0737151248164464,
+        0.6566813509544787
+      ]
+    },
+    "mode2_batch_stats": {
+      "n_samples": 3405,
+      "predicted_class_counts": [
+        847,
+        1282,
+        1021,
+        255
+      ],
+      "predicted_class_frac": [
+        0.24875183553597652,
+        0.3765051395007342,
+        0.2998531571218796,
+        0.07488986784140969
+      ]
+    }
+  }
+}

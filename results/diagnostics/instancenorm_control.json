@@ -1,0 +1,180 @@
+{
+  "cnn_in_snr_sweep": {
+    "clean": {
+      "accuracy": 0.9074889867841409,
+      "ece_uncalibrated": 0.02708845647946332
+    },
+    "20": {
+      "accuracy_mean": 0.8743612334801762,
+      "accuracy_std": 0.0013054984300083954,
+      "ece_uncalibrated_mean": 0.03283453116507957,
+      "ece_uncalibrated_std": 0.002169705938364187
+    },
+    "15": {
+      "accuracy_mean": 0.8390014684287813,
+      "accuracy_std": 0.0007747962383713818,
+      "ece_uncalibrated_mean": 0.07810765163138748,
+      "ece_uncalibrated_std": 0.001226588730495871
+    },
+    "10": {
+      "accuracy_mean": 0.8203817914831131,
+      "accuracy_std": 0.0002995018803872637,
+      "ece_uncalibrated_mean": 0.0996179321771501,
+      "ece_uncalibrated_std": 0.0009509335503046422
+    },
+    "5": {
+      "accuracy_mean": 0.7997063142437593,
+      "accuracy_std": 0.0012868665080884938,
+      "ece_uncalibrated_mean": 0.10039793882075912,
+      "ece_uncalibrated_std": 0.001662007167703049
+    },
+    "0": {
+      "accuracy_mean": 0.7194126284875184,
+      "accuracy_std": 0.0023094981793054486,
+      "ece_uncalibrated_mean": 0.1186548988146929,
+      "ece_uncalibrated_std": 0.003856692005312846
+    },
+    "-5": {
+      "accuracy_mean": 0.4130396475770925,
+      "accuracy_std": 0.0023974545235780995,
+      "ece_uncalibrated_mean": 0.4104962477810058,
+      "ece_uncalibrated_std": 0.0032891605788505545
+    },
+    "-10": {
+      "accuracy_mean": 0.2679001468428781,
+      "accuracy_std": 0.0003896181838890331,
+      "ece_uncalibrated_mean": 0.6460270940049628,
+      "ece_uncalibrated_std": 0.0007369247445426135
+    },
+    "-15": {
+      "accuracy_mean": 0.2585022026431718,
+      "accuracy_std": 0.00028775209900537915,
+      "ece_uncalibrated_mean": 0.6680773579566666,
+      "ece_uncalibrated_std": 0.00034511929264090306
+    }
+  },
+  "cnn_in_predicted_class_distribution": {
+    "5": {
+      "n_samples": 3405,
+      "predicted_class_counts": [
+        994,
+        1349,
+        784,
+        278
+      ],
+      "predicted_class_frac": [
+        0.29192364170337737,
+        0.3961820851688693,
+        0.2302496328928047,
+        0.0816446402349486
+      ]
+    },
+    "0": {
+      "n_samples": 3405,
+      "predicted_class_counts": [
+        1254,
+        1132,
+        845,
+        174
+      ],
+      "predicted_class_frac": [
+        0.3682819383259912,
+        0.33245227606461086,
+        0.24816446402349487,
+        0.05110132158590308
+      ]
+    }
+  },
+  "cnn_bn_power_group_diagnostic": {
+    "0": {
+      "clean": {
+        "layer_name": "features.1",
+        "high_power_mean": -0.0666923075914383,
+        "high_power_var": 0.22032947838306427,
+        "low_power_mean": -0.06637543439865112,
+        "low_power_var": 0.22581970691680908
+      },
+      "10": {
+        "layer_name": "features.1",
+        "high_power_mean": -0.07113025337457657,
+        "high_power_var": 0.20988544821739197,
+        "low_power_mean": -0.07972882688045502,
+        "low_power_var": 0.25675469636917114
+      },
+      "5": {
+        "layer_name": "features.1",
+        "high_power_mean": -0.07499361038208008,
+        "high_power_var": 0.20427533984184265,
+        "low_power_mean": -0.08701383322477341,
+        "low_power_var": 0.26676446199417114
+      },
+      "0": {
+        "layer_name": "features.1",
+        "high_power_mean": -0.08135083317756653,
+        "high_power_var": 0.19878773391246796,
+        "low_power_mean": -0.09754746407270432,
+        "low_power_var": 0.27817925810813904
+      }
+    },
+    "1": {
+      "clean": {
+        "layer_name": "features.5",
+        "high_power_mean": -0.015803106129169464,
+        "high_power_var": 1.0256052017211914,
+        "low_power_mean": 0.0280647911131382,
+        "low_power_var": 1.062514066696167
+      },
+      "10": {
+        "layer_name": "features.5",
+        "high_power_mean": -0.05589211732149124,
+        "high_power_var": 0.9847931861877441,
+        "low_power_mean": -0.06273715943098068,
+        "low_power_var": 1.2169997692108154
+      },
+      "5": {
+        "layer_name": "features.5",
+        "high_power_mean": -0.08013936132192612,
+        "high_power_var": 0.9742004871368408,
+        "low_power_mean": -0.10086329281330109,
+        "low_power_var": 1.3189051151275635
+      },
+      "0": {
+        "layer_name": "features.5",
+        "high_power_mean": -0.10189542174339294,
+        "high_power_var": 0.9833928346633911,
+        "low_power_mean": -0.13638091087341309,
+        "low_power_var": 1.4755864143371582
+      }
+    },
+    "2": {
+      "clean": {
+        "layer_name": "features.9",
+        "high_power_mean": 0.12028105556964874,
+        "high_power_var": 0.14182700216770172,
+        "low_power_mean": 0.1332537680864334,
+        "low_power_var": 0.17171940207481384
+      },
+      "10": {
+        "layer_name": "features.9",
+        "high_power_mean": 0.1179606020450592,
+        "high_power_var": 0.13778431713581085,
+        "low_power_mean": 0.1039213240146637,
+        "low_power_var": 0.14993959665298462
+      },
+      "5": {
+        "layer_name": "features.9",
+        "high_power_mean": 0.12096216529607773,
+        "high_power_var": 0.144219309091568,
+        "low_power_mean": 0.09304221719503403,
+        "low_power_var": 0.1590360701084137
+      },
+      "0": {
+        "layer_name": "features.9",
+        "high_power_mean": 0.12138229608535767,
+        "high_power_var": 0.15252521634101868,
+        "low_power_mean": 0.07929776608943939,
+        "low_power_var": 0.18687306344509125
+      }
+    }
+  }
+}
